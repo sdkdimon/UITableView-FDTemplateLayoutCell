@@ -10,6 +10,7 @@
 #import "UITableView+FDTemplateLayoutCell.h"
 #import "FDFeedEntity.h"
 #import "FDFeedCell.h"
+#import "FDFeedHeaderFooter.h"
 
 typedef NS_ENUM(NSInteger, FDSimulatedCacheMode) {
     FDSimulatedCacheModeNone = 0,
@@ -17,7 +18,7 @@ typedef NS_ENUM(NSInteger, FDSimulatedCacheMode) {
     FDSimulatedCacheModeCacheByKey
 };
 
-@interface FDFeedViewController () <UIActionSheetDelegate>
+@interface FDFeedViewController ()
 @property (nonatomic, copy) NSArray *prototypeEntitiesFromJSON;
 @property (nonatomic, strong) NSMutableArray *feedEntitySections; // 2d array
 @property (nonatomic, weak) IBOutlet UISegmentedControl *cacheModeSegmentControl;
@@ -27,8 +28,8 @@ typedef NS_ENUM(NSInteger, FDSimulatedCacheMode) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-   
-    self.tableView.fd_debugLogEnabled = YES;
+    [self.tableView registerClass:[FDFeedHeaderFooter class] forHeaderFooterViewReuseIdentifier:@"FDFeedHeader"];
+    self.tableView.fd_debugLogEnabled = NO;
     
     // Cache by index path initial
     self.cacheModeSegmentControl.selectedSegmentIndex = 1;
@@ -47,9 +48,7 @@ typedef NS_ENUM(NSInteger, FDSimulatedCacheMode) {
         // Data from `data.json`
         NSString *dataFilePath = [[NSBundle mainBundle] pathForResource:@"data" ofType:@"json"];
         NSData *data = [NSData dataWithContentsOfFile:dataFilePath];
-        NSDictionary *rootDict = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:nil];
-        NSArray *feedDicts = rootDict[@"feed"];
-        
+        NSArray *feedDicts = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:nil];
         // Convert to `FDFeedEntity`
         NSMutableArray *entities = @[].mutableCopy;
         [feedDicts enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
@@ -78,16 +77,6 @@ typedef NS_ENUM(NSInteger, FDSimulatedCacheMode) {
     FDFeedCell *cell = [tableView dequeueReusableCellWithIdentifier:@"FDFeedCell"];
     [self configureCell:cell atIndexPath:indexPath];
     return cell;
-}
-
-- (void)configureCell:(FDFeedCell *)cell atIndexPath:(NSIndexPath *)indexPath {
-    cell.fd_enforceFrameLayout = NO; // Enable to use "-sizeThatFits:"
-    if (indexPath.row % 2 == 0) {
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    } else {
-        cell.accessoryType = UITableViewCellAccessoryCheckmark;
-    }
-    cell.entity = self.feedEntitySections[indexPath.section][indexPath.row];
 }
 
 - (NSArray<NSString *> *)sectionIndexTitlesForTableView:(UITableView *)tableView {
@@ -127,6 +116,61 @@ typedef NS_ENUM(NSInteger, FDSimulatedCacheMode) {
     }
 }
 
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section
+{
+    FDFeedHeaderFooter *header = [tableView dequeueReusableHeaderFooterViewWithIdentifier:@"FDFeedHeader"];
+    [self configureHeader:header];
+    return header;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section
+{
+    __weak typeof (self) welf = self;
+    return [tableView fd_heightForHeaderFooterViewWithIdentifier:@"FDFeedHeader" configuration:^(id headerFooterView) {
+        [welf configureHeader:headerFooterView];
+    }];
+}
+
+
+- (UIView *)tableView:(UITableView *)tableView viewForFooterInSection:(NSInteger)section
+{
+    FDFeedHeaderFooter *header = [tableView dequeueReusableHeaderFooterViewWithIdentifier:@"FDFeedHeader"];
+    [self configureFooter:header];
+    return header;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section
+{
+    __weak typeof (self) welf = self;
+    return [tableView fd_heightForHeaderFooterViewWithIdentifier:@"FDFeedHeader" configuration:^(id headerFooterView) {
+        [welf configureFooter:headerFooterView];
+    }];
+}
+
+#pragma mark - Table Items Config
+
+- (void)configureCell:(FDFeedCell *)cell atIndexPath:(NSIndexPath *)indexPath {
+    cell.fd_enforceFrameLayout = NO; // Enable to use "-sizeThatFits:"
+    if (indexPath.row % 2 == 0) {
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    } else {
+        cell.accessoryType = UITableViewCellAccessoryCheckmark;
+    }
+    cell.entity = self.feedEntitySections[indexPath.section][indexPath.row];
+}
+
+- (void)configureHeader:(FDFeedHeaderFooter *)header
+{
+    header.titleLabel.text = @"Header";
+    header.titleLabel.textAlignment = NSTextAlignmentCenter;
+}
+
+- (void)configureFooter:(FDFeedHeaderFooter *)footer
+{
+    footer.titleLabel.text = @"Footer";
+    footer.titleLabel.textAlignment = NSTextAlignmentCenter;
+}
+
 #pragma mark - Actions
 
 - (IBAction)refreshControlAction:(UIRefreshControl *)sender {
@@ -139,29 +183,27 @@ typedef NS_ENUM(NSInteger, FDSimulatedCacheMode) {
 }
 
 - (IBAction)rightNavigationItemAction:(id)sender {
-    [[[UIActionSheet alloc]
-      initWithTitle:@"Actions"
-      delegate:self
-      cancelButtonTitle:@"Cancel"
-      destructiveButtonTitle:nil
-      otherButtonTitles:
-      @"Insert a row",
-      @"Insert a section",
-      @"Delete a section", nil]
-     showInView:self.view];
-}
-
-- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
-    SEL selectors[] = {
-        @selector(insertRow),
-        @selector(insertSection),
-        @selector(deleteSection)
-    };
-
-    if (buttonIndex < sizeof(selectors) / sizeof(SEL)) {
-        void(*imp)(id, SEL) = (typeof(imp))[self methodForSelector:selectors[buttonIndex]];
-        imp(self, selectors[buttonIndex]);
-    }
+    
+    __weak typeof (self) welf = self;
+    UIAlertController *actionSheet = [UIAlertController alertControllerWithTitle:@"Actions"
+                                                                         message:nil
+                                                                  preferredStyle:UIAlertControllerStyleActionSheet];
+    
+    [actionSheet addAction:[UIAlertAction actionWithTitle: @"Insert a row" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        [welf insertRow];
+    }]];
+    
+    [actionSheet addAction:[UIAlertAction actionWithTitle: @"Insert a section" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        [welf insertSection];
+    }]];
+    
+    [actionSheet addAction:[UIAlertAction actionWithTitle: @"Delete a section" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        [welf deleteSection];
+    }]];
+    
+    [actionSheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    
+    [self presentViewController:actionSheet animated:YES completion:nil];
 }
 
 - (FDFeedEntity *)randomEntity {
