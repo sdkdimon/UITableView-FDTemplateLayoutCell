@@ -137,6 +137,9 @@
         templateCell.fd_isTemplateLayoutCell = YES;
         templateCellsByIdentifiers[identifier] = templateCell;
         [self fd_debugLog:[NSString stringWithFormat:@"layout cell created - %@", identifier]];
+    } else {
+        // Manually calls to ensure consistent behavior with actual cells. (that are displayed on screen)
+        [templateCell prepareForReuse];
     }
     
     return templateCell;
@@ -213,6 +216,9 @@
         NSAssert(templateHeaderFooterView != nil, @"HeaderFooterView must be registered to table view for identifier - %@", identifier);
         templateHeaderFooterViews[identifier] = templateHeaderFooterView;
         [self fd_debugLog:[NSString stringWithFormat:@"layout header footer view created - %@", identifier]];
+    } else {
+        // Manually calls to ensure consistent behavior with actual headers. (that are displayed on screen)
+        [templateHeaderFooterView prepareForReuse];
     }
     
     return templateHeaderFooterView;
